@@ -92,6 +92,8 @@ class Login() : AsyncTask<Any, Int?, String?>() {
 
             while (!(line.isBlank())) {
                 stringBuilder.append(line + "\n")
+
+                line = bufferedReader.readLine()
                 //                    System.out.println("PHP file returned: " + line);
             }
             bufferedReader.close()
