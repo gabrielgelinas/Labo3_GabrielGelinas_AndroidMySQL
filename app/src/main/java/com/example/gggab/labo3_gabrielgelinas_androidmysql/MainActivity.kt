@@ -1,6 +1,5 @@
 package com.example.gggab.labo3_gabrielgelinas_androidmysql
 
-import android.app.AlertDialog
 import android.content.Context
 import android.os.AsyncTask
 import android.support.v7.app.AppCompatActivity
@@ -9,20 +8,33 @@ import kotlinx.android.synthetic.main.activity_main.button1
 import kotlinx.android.synthetic.main.activity_main.button2
 import kotlinx.android.synthetic.main.activity_main.username
 import kotlinx.android.synthetic.main.activity_main.password
-import java.io.BufferedReader
-import java.io.BufferedWriter
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
-import java.util.*
+import android.net.wifi.WifiManager
+import android.support.annotation.LayoutRes
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.Toast
+import org.json.JSONObject
+import java.io.*
+
 
 class MainActivity : AppCompatActivity() {
+
+    private lateinit var mainContext: Context
+    lateinit var parentVG: ViewGroup
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        parentVG = findViewById(R.id.parent)
+
+
+
+        mainContext = this.applicationContext
 
         button1.setOnClickListener {
             login()
@@ -34,12 +46,22 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun login() {
+        val wm = getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val networkWorker = NetworkWorker(wm)
+        var ip = networkWorker.ip
+
+        ip = "192.168.0.134"
+
+        System.out.println(ip)
         val user_log = object {
-            var user_id: String =  username.text.toString()
-            var user_pw: String =  password.text.toString()
+            var user_id: String = username.text.toString()
+            var user_pw: String = password.text.toString()
         }
         System.out.println(user_log)
-        Login().execute(user_log)
+
+        val url = URL("http://" + ip.toString() + "/AndroidToMySQL/userconnect.php")
+        Login(url, mainContext, parentVG).execute(ip, user_log)
+
     }
 
     fun signIn() {
@@ -47,17 +69,29 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
-class Login() : AsyncTask<Any, Int?, String?>() {
-    override fun doInBackground(vararg params: Any?): String? {
+class Login(url: URL, mainContext: Context, var parentVG: ViewGroup) : AsyncTask<Any, Int?, JSONObject>() {
+
+
+    private val httpConnection: HttpURLConnection = url.openConnection() as HttpURLConnection
+    private var mContext: Context = mainContext as Context
+
+    init {
+
+    }
+
+    override fun onPreExecute() {
+        super.onPreExecute()
+    }
+
+    override fun doInBackground(vararg params: Any?): JSONObject {
 
         try {
-            val url = URL("http://192.168.0.134/AndroidToMySQL/dbwrite.php")
-            val connection = url.openConnection() as HttpURLConnection
-            connection.doInput = true
-            //                connection.setDoOutput(true);
-            connection.requestMethod = "POST"
 
-            val outputStream = connection.outputStream
+            httpConnection.doInput = true
+            //                connection.setDoOutput(true);
+            httpConnection.doOutput = true
+
+            val outputStream = httpConnection.outputStream
             val bufferedWriter = BufferedWriter(OutputStreamWriter(outputStream, "utf-8"))
 
             val msg = URLEncoder.encode("username", "utf-8") + "=" +
@@ -85,31 +119,47 @@ class Login() : AsyncTask<Any, Int?, String?>() {
 
             //                System.out.println("Sent to PHP file: " + msg);
 
-            val inputStream = connection.inputStream
+            val inputStream = httpConnection.inputStream
             val bufferedReader = BufferedReader(InputStreamReader(inputStream, "iso-8859-1"))
             var line: String = bufferedReader.readLine()
-            val stringBuilder = StringBuilder()
+//            val stringBuilder = StringBuilder()
 
-            while (!(line.isBlank())) {
-                stringBuilder.append(line + "\n")
+            val answer = JSONObject(line)
+//            while (!(line.isBlank())) {
+            System.out.println(line)
+            System.out.println(answer)
+//                stringBuilder.append(line + "\n")
 
-                line = bufferedReader.readLine()
-                //                    System.out.println("PHP file returned: " + line);
-            }
-            bufferedReader.close()
+//                line = bufferedReader.readLine()
+            //                    System.out.println("PHP file returned: " + line);
+//            }
+//            bufferedReader.close()
 
-            return stringBuilder.toString()
+            return answer
         } catch (e: Exception) {
-            return e.message
+            return JSONObject(e.message)
         }
 
 
     }
 
-    override fun onPostExecute(result: String?) {
-        super.onPostExecute(result)
+    override fun onPostExecute(result: JSONObject) {
+        if (result["auth"] == "accept")
+            parentVG.inflate(R.layout.sign_in,false)
+            parentVG.getChildAt(1).display
+            mContext.toast(result["auth"].toString())
     }
+
 }
+
+fun ViewGroup.inflate(@LayoutRes layoutRes: Int, attachToRoot: Boolean = false): View {
+    return LayoutInflater.from(context).inflate(layoutRes, this, attachToRoot)
+
+}
+
+fun Context.toast(message: CharSequence) =
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show()
+
 //    fun SendToDatabase() {
 //        for (product in productList) {
 //            val databaseWorker = DatabaseWorker(this, "http://192.168.0.134/AndroidToMySQL/dbwrite.php")
